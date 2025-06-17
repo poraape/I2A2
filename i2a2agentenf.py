@@ -1,9 +1,3 @@
-from google.colab import userdata
-import os
-
-# Carrega a chave do gerenciador de segredos do Colab
-os.environ['GOOGLE_API_KEY'] = userdata.get('GOOGLE_API_KEY')
-
 # Commented out IPython magic to ensure Python compatibility.
 # %%writefile app.py
 # 
