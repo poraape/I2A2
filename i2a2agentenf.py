@@ -7,7 +7,6 @@ Original file is located at
     https://colab.research.google.com/gist/poraape/0e97142e8bca6c4f1ffd5ccd91264956/i2a2agentenf.ipynb
 """
 
-!pip install streamlit pandas google-generativeai python-dotenv pyngrok
 
 from google.colab import userdata
 import os
