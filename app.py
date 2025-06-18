@@ -1,4 +1,4 @@
-# data_insights_app.py - Refatorado com melhorias estruturais e antialucinação
+# data_insights_app.py - Refatorado com inteligência semântica, execução contextual e geração de gráficos
 
 import streamlit as st
 import pandas as pd
@@ -76,46 +76,65 @@ def python_code_interpreter(code: str, scope: str):
     except Exception as e:
         return f"Erro ao executar o código: {e}"
 
-def web_search(query: str):
-    with DDGS() as ddgs:
-        results = [r['body'] for r in ddgs.text(query, max_results=3)]
-    return "\n".join(results) if results else "Nenhum resultado encontrado."
-
-def list_available_data():
-    if not st.session_state.dataframes:
-        return "Nenhum arquivo de dados foi carregado ainda."
-    return f"Arquivos disponíveis: {', '.join(st.session_state.dataframes.keys())}"
-
-def get_data_schema(filename: str):
-    if filename not in st.session_state.dataframes:
-        return f"Erro: O arquivo '{filename}' não foi encontrado."
-    buffer = io.StringIO()
-    st.session_state.dataframes[filename].info(buf=buffer)
-    return buffer.getvalue()
-
 TOOLS = {
-    "python_code_interpreter": python_code_interpreter,
-    "web_search": web_search,
-    "list_available_data": list_available_data,
-    "get_data_schema": get_data_schema
+    "python_code_interpreter": python_code_interpreter
 }
 
 # =============================================================================
-# AGENTE EXECUTOR APRIMORADO COM ANTI-ALUCINAÇÃO
+# AGENTE EXECUTOR INTELIGENTE COM SUPORTE A GRÁFICOS
 # =============================================================================
 def agent_executor(query, chat_history, scope):
     recent_history = chat_history[-5:]
     history_str = "".join([f"{m['role']}: {m['content']}\n" for m in recent_history])
     df = get_active_df(scope)
     df_info = f"{len(df)} linhas, colunas: {list(df.columns)}"
+    query_lower = query.lower()
 
-    # Camada de interpretação semântica para entender intenções simples como contagem
-    if any(term in query.lower() for term in ["quantas notas", "número de notas", "total de notas"]):
+    expressao = None
+    if any(p in query_lower for p in ["quantas", "total de linhas", "número de notas"]):
+        expressao = "len(df)"
+    elif "média" in query_lower:
+        for col in df.select_dtypes("number").columns:
+            if "valor" in col.lower() or col.lower() in query_lower:
+                expressao = f"df['{col}'].mean()"
+                break
+    elif "soma" in query_lower:
+        for col in df.select_dtypes("number").columns:
+            if "valor" in col.lower() or col.lower() in query_lower:
+                expressao = f"df['{col}'].sum()"
+                break
+    elif "maior" in query_lower or "máximo" in query_lower:
+        for col in df.select_dtypes("number").columns:
+            if "valor" in col.lower() or col.lower() in query_lower:
+                expressao = f"df['{col}'].max()"
+                break
+    elif "menor" in query_lower or "mínimo" in query_lower:
+        for col in df.select_dtypes("number").columns:
+            if "valor" in col.lower() or col.lower() in query_lower:
+                expressao = f"df['{col}'].min()"
+                break
+
+    if expressao:
         try:
-            resultado = len(df)
-            return {"tool": "final_answer", "tool_input": f"Existem {resultado} notas fiscais no escopo atual."}, ""
+            resultado = eval(expressao, {"df": df, "pd": pd})
+            return {"tool": "final_answer", "tool_input": f"Resultado: {round(resultado, 2) if isinstance(resultado, (int, float)) else resultado}"}, ""
         except Exception as e:
-            return {"tool": "final_answer", "tool_input": f"Erro ao contar as notas: {e}"}, ""
+            return {"tool": "final_answer", "tool_input": f"Erro ao executar operação: {e}"}, ""
+
+    if any(p in query_lower for p in ["gráfico", "plot", "visualiza", "distribuição", "barras", "linha", "pizza"]):
+        context = f"Pergunta: {query}\nColunas: {list(df.columns)}\nDtypes: {df.dtypes.to_dict()}"
+        prompt = f"""
+        Gere apenas código Python para criar um gráfico relevante com base na pergunta e no DataFrame 'df'.
+        Finalize com: resultado = plt.gcf()
+        {context}
+        """
+        try:
+            response = model.generate_content(prompt)
+            code = response.text.split("```python")[-1].split("```")[0]
+            resultado = python_code_interpreter(code, scope)
+            return {"tool": "python_code_interpreter", "tool_input": code}, resultado
+        except Exception as e:
+            return {"tool": "final_answer", "tool_input": f"Erro ao gerar gráfico: {e}"}, ""
 
     context = f"""
     **Contexto da Análise:**
@@ -124,14 +143,12 @@ def agent_executor(query, chat_history, scope):
     - Shape do DataFrame: {df_info}
     - Histórico: {history_str}
     """
-
     prompt = f"""
-    Você é um analista de dados confiável. Siga o ciclo Thought → Action → Observation para resolver:
-    {context}
+    Você é um analista de dados confiável. Interprete a pergunta e execute a operação diretamente no DataFrame chamado 'df'.
     Pergunta: "{query}"
-    Ferramentas disponíveis: {list(TOOLS.keys())}
-
-    Ao concluir, envie: {{"tool": "final_answer", "tool_input": "..."}}
+    {context}
+    Gere uma resposta final com clareza e sem alucinações:
+    {{"tool": "final_answer", "tool_input": "..."}}
     """
     try:
         response = model.generate_content(prompt)
@@ -196,6 +213,9 @@ else:
                 if tool_action["tool"] == "final_answer":
                     st.markdown(tool_action["tool_input"])
                     st.session_state.messages.append({"role": "assistant", "content": tool_action["tool_input"]})
+                elif tool_action["tool"] == "python_code_interpreter" and isinstance(pensamento, plt.Figure):
+                    st.pyplot(pensamento)
+                    st.session_state.messages.append({"role": "assistant", "content": pensamento})
                 else:
                     tool_fn = TOOLS.get(tool_action["tool"])
                     output = tool_fn(tool_action["tool_input"], st.session_state.active_scope) if 'scope' in tool_fn.__code__.co_varnames else tool_fn(tool_action["tool_input"])
