@@ -11,8 +11,8 @@ import io
 st.set_page_config(
     layout="centered",
     page_title="Data Insights Agent",
-    page_icon="🍏"
-    initial_sidebar_state="expanded"  # <-- ADICIONE ESTA LINHA
+    page_icon="🍏",  # <-- VÍRGULA ADICIONADA
+    initial_sidebar_state="expanded"
 )
 
 # Estilo CSS para a estética "Apple-like" minimalista
