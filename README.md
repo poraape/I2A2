@@ -1,28 +1,31 @@
-# I2A2
-# 🍏 Data Insights Agent
+# 🍏 Data Insights Pro
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.33-ff4b4b.svg)](https://streamlit.io)
-[![Made with Gemini](https://img.shields.io/badge/Made%20with-Gemini%20AI-8A2BE2.svg)](https://ai.google.dev/)
+[![Made with Gemini 1.5](https://img.shields.io/badge/Made%20with-Gemini%201.5-8A2BE2.svg)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Um assistente de IA conversacional que transforma seus arquivos CSV em insights estratégicos. Construído com uma arquitetura multi-agente e uma interface minimalista, este não é apenas um leitor de dados, é seu parceiro de análise.
+Um **parceiro de análise de dados autônomo** que transforma seus arquivos CSV em insights estratégicos e visualizações claras. Construído com uma arquitetura multi-agente avançada, este aplicativo não apenas responde perguntas, mas também pensa, analisa e guia você através dos seus dados.
 
 ---
 
-### ✨ Features Principais
+### ✨ Features Avançadas
 
-*   **Análise Inteligente de Onboarding:** Ao carregar um arquivo, um agente especializado analisa seus dados e sugere perguntas estratégicas para iniciar a conversa.
-*   **Interface de Chat Conversacional:** Faça perguntas em linguagem natural e receba respostas claras e contextualizadas.
-*   **Arquitetura Multi-Agente:** Uma equipe de agentes de IA colabora nos bastidores para entender sua pergunta, gerar o código de análise, executar e sintetizar a resposta.
-*   **Design Minimalista e Responsivo:** Uma interface limpa e elegante, inspirada na filosofia de design da Apple, que funciona perfeitamente em desktop e mobile.
-*   **Seguro e Adaptável:** O código é projetado para rodar tanto em um ambiente de desenvolvimento local (usando arquivos `.env`) quanto em produção na nuvem (usando `st.secrets`).
+*   **Análise Exploratória Proativa:** Ao carregar um arquivo, um agente especializado realiza uma Análise Exploratória de Dados (EDA), apresentando um resumo estatístico, insights iniciais e sugerindo caminhos de investigação.
+*   **Geração de Visualizações:** Peça gráficos em linguagem natural! O agente entende sua intenção e gera visualizações (gráficos de barras, histogramas, etc.) para ilustrar os dados.
+*   **Agente Roteador Inteligente:** Um "cérebro" central analisa cada pergunta e decide a melhor ferramenta para a tarefa, seja um cálculo com Pandas ou uma visualização com Matplotlib/Seaborn.
+*   **Memória Conversacional:** O agente mantém o contexto da conversa, permitindo perguntas de acompanhamento de forma natural (ex: "E por categoria?").
+*   **Interface de Chat Intuitiva:** Uma experiência de usuário limpa e focada, projetada para uma interação fluida e direta.
 
 ### 🚀 Demonstração
 
-[SUGESTÃO] Grave um GIF curto mostrando o fluxo: carregar um arquivo, ver as perguntas sugeridas, fazer uma nova pergunta e receber a resposta. Use ferramentas como [LiceCAP](https://www.cockos.com/licecap/) ou [Giphy Capture](https://giphy.com/apps/giphycapture). Depois, substitua a linha abaixo pelo seu GIF.
+[SUGESTÃO] Grave um novo GIF que mostre o fluxo aprimorado:
+1.  Upload do arquivo.
+2.  Aparecimento da análise proativa e das perguntas sugeridas.
+3.  Você faz uma pergunta que gera um gráfico.
+4.  Você faz uma pergunta de acompanhamento que gera um número.
 
-![Demo do Data Insights Agent](https://i.imgur.com/link_para_seu_gif_aqui.gif)
+![Demo do Data Insights Pro](https://i.imgur.com/link_para_seu_novo_gif.gif)
 
 ### 🛠️ Como Rodar Localmente (Para Desenvolvedores)
 
@@ -39,7 +42,6 @@ cd seu-repositorio
 ```
 
 **3. Crie e Ative um Ambiente Virtual:**
-É uma forte recomendação usar um ambiente virtual para isolar as dependências do projeto.
 ```bash
 # Crie o ambiente
 python3 -m venv .venv
@@ -52,17 +54,18 @@ source .venv/bin/activate
 ```
 
 **4. Instale as Dependências:**
+**Importante:** O novo `requirements.txt` contém bibliotecas de visualização.
 ```bash
 pip install -r requirements.txt
 ```
 
 **5. Configure sua Chave da API do Gemini:**
 *   Crie um arquivo chamado `.env` na raiz do projeto.
-*   Adicione sua chave da API do Google Gemini a este arquivo no seguinte formato:
+*   Adicione sua chave da API do Google Gemini a este arquivo:
     ```
     GOOGLE_API_KEY="SUA_CHAVE_SECRETA_REAL_VAI_AQUI"
     ```
-*   **Importante:** O arquivo `.env` já está listado no `.gitignore` para garantir que sua chave secreta nunca seja enviada para o GitHub.
+*   O arquivo `.env` já está no `.gitignore` para proteger sua chave.
 
 **6. Execute o Aplicativo Streamlit:**
 ```bash
@@ -74,14 +77,15 @@ Abra seu navegador no endereço `http://localhost:8501`.
 
 Este aplicativo está pronto para ser publicado na nuvem gratuitamente.
 
-1.  Envie seu projeto para um repositório público no GitHub.
-2.  Cadastre-se na [Streamlit Community Cloud](https://share.streamlit.io/) com sua conta do GitHub.
+1.  Envie seu projeto para um repositório público no GitHub (certifique-se de que o `.gitignore` está protegendo seu `.env`).
+2.  Cadastre-se na [Streamlit Community Cloud](https://share.streamlit.io/).
 3.  Clique em "New app" e selecione seu repositório.
-4.  Antes de fazer o deploy, vá em "Advanced settings..." e adicione sua `GOOGLE_API_KEY` na seção "Secrets", no mesmo formato que o arquivo `.env`.
+4.  Antes de fazer o deploy, vá em "Advanced settings..." e adicione sua `GOOGLE_API_KEY` na seção "Secrets".
 
 ### 💻 Tech Stack
 
 *   **Linguagem:** Python
 *   **Framework da Interface:** Streamlit
 *   **Manipulação de Dados:** Pandas
-*   **Modelo de IA:** Google Gemini Pro
+*   **Visualização de Dados:** Matplotlib, Seaborn
+*   **Modelo de IA:** Google Gemini 1.5 flash latestesro
