@@ -156,12 +156,22 @@ TOOLS = {
 def agent_executor(query, chat_history, scope):
     """O cérebro do sistema. Usa o modelo ReAct para pensar e usar ferramentas."""
     
+    # <-- MUDANÇA: Preparamos o histórico ANTES da f-string principal
+    # Isso evita o erro de sintaxe do backslash.
+    history_list = []
+    for msg in chat_history:
+        # Apenas adiciona mensagens de texto ao histórico para o LLM, ignora gráficos.
+        if isinstance(msg["content"], str):
+            history_list.append(f'{msg["role"]}: {msg["content"]}')
+    history_str = "\n".join(history_list)
+
     # RAG: Recuperação de contexto relevante
     context = f"""
     **Contexto Atual da Análise:**
     - Escopo Selecionado: {scope}
     - Arquivos Disponíveis: {list(st.session_state.dataframes.keys())}
-    - Histórico da Conversa: {"".join([f'{m["role"]}: {m["content"]}\\n' for m in chat_history])}
+    - Histórico da Conversa:
+{history_str}
     """
 
     prompt = f"""
@@ -177,18 +187,11 @@ def agent_executor(query, chat_history, scope):
     - `get_data_schema(filename: str)`: Obtém as colunas de um arquivo específico.
 
     **Ciclo de Trabalho:**
-    1.  **Thought:** Descreva seu plano passo a passo. O que você precisa saber? Qual ferramenta o ajudará a obter essa informação?
-    2.  **Action:** Escolha UMA ferramenta e formule a entrada para ela em um formato JSON.
-        Exemplo de Ação:
-        ```json
-        {{"tool": "web_search", "tool_input": "cotação atual BRL para USD"}}
-        ```
+    1.  **Thought:** Descreva seu plano passo a passo.
+    2.  **Action:** Escolha UMA ferramenta e formule a entrada em um formato JSON. Ex: `{{"tool": "web_search", "tool_input": "cotação BRL USD"}}`
     3.  O sistema executará a ferramenta e você receberá uma **Observation**.
-    4.  Repita o ciclo Pensamento-Ação até ter informações suficientes para responder à pergunta original.
-    5.  Quando tiver a resposta final, seu último pensamento deve ser "Eu tenho a resposta final." e a Ação deve ser um JSON com a ferramenta "final_answer" e a resposta completa.
-        ```json
-        {{"tool": "final_answer", "tool_input": "A resposta final é..."}}
-        ```
+    4.  Repita o ciclo até ter a resposta final.
+    5.  Quando tiver a resposta, sua última Ação deve ser: `{{"tool": "final_answer", "tool_input": "A resposta final é..."}}`
 
     **Inicie o processo.**
 
@@ -197,10 +200,10 @@ def agent_executor(query, chat_history, scope):
     
     response = model.generate_content(prompt)
     try:
-        # Extrai o JSON da resposta do LLM
-        json_part = response.text.split("```json").split("```")[0]
-        action_json = json.loads(json_part)
-        return action_json, response.text # Retorna a ação e o pensamento completo
+        # Tenta extrair o JSON da resposta do LLM de forma robusta
+        json_text = response.text.split('```json').split('```')[0]
+        action_json = json.loads(json_text)
+        return action_json, response.text
     except (IndexError, json.JSONDecodeError):
         # Fallback se o LLM não seguir o formato
         return {"tool": "final_answer", "tool_input": f"Desculpe, tive um problema ao formular um plano de ação. A resposta do modelo foi: {response.text}"}, response.text
