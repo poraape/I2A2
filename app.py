@@ -132,6 +132,7 @@ def tool_code_generator(query, df_head):
 
 def tool_visualization_generator(query, df_head):
     """Ferramenta que gera código de visualização."""
+    # <-- MUDANÇA: Removida a formatação Markdown (**) do prompt
     prompt = f"""
     Você é um especialista em visualização de dados com Python, Matplotlib e Seaborn.
     Gere código para criar uma visualização que responda à pergunta do usuário.
@@ -140,7 +141,7 @@ def tool_visualization_generator(query, df_head):
     {df_head.to_markdown()}
     Pergunta: "{query}"
 
-    **Instruções Cruciais:**
+    Instruções Cruciais:
     1. Importe `matplotlib.pyplot as plt` e `seaborn as sns`.
     2. Crie a figura e os eixos (ex: `fig, ax = plt.subplots()`).
     3. Gere o gráfico usando `ax`. Adicione títulos e rótulos claros.
@@ -150,22 +151,10 @@ def tool_visualization_generator(query, df_head):
     Gere APENAS o código Python.
     """
     response = model.generate_content(prompt)
-    # <-- MUDANÇA: Lógica de sanitização para remover texto extra e Markdown
+    # Lógica de sanitização para remover texto extra e Markdown
     raw_code = response.text
     cleaned_code = raw_code.replace("```python", "").replace("```", "").strip()
     return cleaned_code
-
-    **Instruções Cruciais:**
-    1. Importe `matplotlib.pyplot as plt` e `seaborn as sns`.
-    2. Crie a figura e os eixos (ex: `fig, ax = plt.subplots()`).
-    3. Gere o gráfico usando `ax`. Adicione títulos e rótulos claros.
-    4. NÃO use `plt.show()`.
-    5. O seu código DEVE retornar a figura gerada na variável `resultado` (ex: `resultado = fig`).
-    
-    Gere APENAS o código Python.
-    """
-    response = model.generate_content(prompt)
-    return response.text.strip()
 
 def agent_results_synthesizer(query, code_result):
     """Sintetiza resultados textuais."""
