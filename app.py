@@ -10,7 +10,7 @@ import json
 # =============================================================================
 # 1. CONFIGURAÇÃO DA PÁGINA E ESTILO
 # =============================================================================
-st.set_page_config(layout="centered", page_title="Data Insights", page_icon="🍏")
+st.set_page_config(layout="wide", page_title="Data Insights Hub", page_icon="🗂️")
 
 def load_css():
     st.markdown("""
@@ -18,14 +18,7 @@ def load_css():
         html, body, [class*="st-"] {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
         }
-        [data-testid="stChatMessage"] {
-            border-radius: 18px;
-            padding: 1em 1.2em;
-            margin-bottom: 1em;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-        .block-container { max-width: 800px; padding-top: 3rem; padding-bottom: 3rem; }
+        .block-container { padding: 2rem 3rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -43,220 +36,218 @@ except Exception:
     st.stop()
 
 # =============================================================================
-# 3. ARQUITETURA MULTI-AGENTE 2.0
+# 3. ARQUITETURA MULTI-AGENTE (ADAPTADA PARA MÚLTIPLOS ARQUIVOS)
 # =============================================================================
-
-def agent_onboarding(df):
-    """Analisa o dataframe (info e describe) e gera insights proativos."""
-    info_buffer = io.StringIO()
-    df.info(buf=info_buffer)
-    df_info = info_buffer.getvalue()
-    df_describe = df.describe().to_markdown()
+def agent_onboarding(dataframes_dict):
+    """Analisa um dicionário de dataframes e gera um resumo e perguntas estratégicas."""
+    summary = "### 🗂️ Catálogo de Dados Carregado\n\n"
+    summary += f"Detectei e carreguei com sucesso **{len(dataframes_dict)}** arquivo(s) CSV:\n"
+    
+    all_dfs = []
+    for name, df in dataframes_dict.items():
+        summary += f"- **{name}**: `{len(df)}` linhas, `{len(df.columns)}` colunas.\n"
+        all_dfs.append(df)
+    
+    combined_df = pd.concat(all_dfs, ignore_index=True)
+    summary += f"\n**Visão Agregada:** Ao todo, você tem um conjunto de dados com **{len(combined_df)}** linhas para análise combinada.\n"
 
     prompt = f"""
-    Você é um Analista de Dados Estratégico. Sua missão é realizar uma análise exploratória inicial (EDA) em um novo conjunto de dados e apresentar suas descobertas de forma proativa.
+    Você é um Analista de Dados Estratégico. Sua missão é fazer o onboarding de um conjunto de múltiplos arquivos de dados.
 
-    **Estrutura dos Dados (df.info()):**
+    **Resumo do Catálogo de Dados:**
     ---
-    {df_info}
+    {summary}
     ---
-    **Resumo Estatístico (df.describe()):**
+    **Amostra do Conjunto de Dados Combinado:**
     ---
-    {df_describe}
-    ---
-    **Amostra dos Dados (df.head()):**
-    ---
-    {df.head().to_markdown()}
+    {combined_df.head().to_markdown()}
     ---
 
-    Com base em TODAS as informações acima, realize as seguintes tarefas:
-    1.  **Resumo Executivo:** Escreva um parágrafo conciso sobre a natureza e o propósito provável deste conjunto de dados.
-    2.  **Insights Iniciais:** Identifique 2-3 observações interessantes diretamente das estatísticas. Aponte para possíveis anomalias, distribuições notáveis ou correlações implícitas (ex: "A média da 'idade' é 35, mas o valor máximo é 99, o que pode indicar outliers. A receita tem um grande desvio padrão, sugerindo vendas muito desiguais.").
-    3.  **Perguntas Estratégicas:** Formule uma lista de 3 perguntas inteligentes e acionáveis que um líder de negócios faria. Essas perguntas devem ir além do óbvio e sugerir análises mais profundas, incluindo visualizações (ex: "Qual é a correlação entre 'investimento_marketing' e 'receita'?", "Como as vendas se distribuem por categoria de produto em um gráfico de barras?").
+    Com base nas informações acima, realize as seguintes tarefas:
+    1.  **Resumo Executivo:** Escreva um parágrafo sobre o potencial analítico deste conjunto de dados, considerando tanto as análises individuais por arquivo quanto a análise agregada.
+    2.  **Perguntas Estratégicas Sugeridas:** Formule uma lista de 4 perguntas inteligentes que explorem os dados. Inclua pelo menos uma pergunta sobre um arquivo específico, uma pergunta sobre a análise combinada e uma que sugira uma visualização.
+        - Exemplo (Individual): "Qual a receita total no arquivo `vendas_2023.csv`?"
+        - Exemplo (Combinada): "Qual foi a média de vendas mensal em todos os anos?"
+        - Exemplo (Visualização): "Poderia gerar um gráfico de linhas mostrando a tendência de vendas ao longo do tempo para o conjunto de dados combinado?"
     """
     response = model.generate_content(prompt)
-    return response.text
+    return summary + "\n" + response.text
 
+# As outras funções de agente (router, generators, synthesizer) permanecem as mesmas,
+# pois elas operam no DataFrame que lhes é passado, sem se importar com a origem.
+# ... (Cole aqui as funções agent_router, tool_code_generator, etc. da versão anterior) ...
+# (Para manter a resposta concisa, estou omitindo as funções que não mudam, mas você deve mantê-las no seu código)
 def agent_router(query, chat_history):
-    """O cérebro do sistema. Decide qual ferramenta usar."""
     history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
-    
     prompt = f"""
     Você é um agente roteador de IA. Sua função é analisar a pergunta do usuário e o histórico da conversa para decidir qual ferramenta é a mais apropriada para a tarefa.
-
-    **Ferramentas Disponíveis:**
-    1. `gerar_codigo_pandas`: Use para perguntas que podem ser respondidas com um cálculo, uma tabela, um número ou texto. Exemplos: "qual a média de idade?", "liste os 5 produtos mais vendidos", "qual o total de vendas?".
-    2. `gerar_codigo_visualizacao`: Use para perguntas que pedem explicitamente por um gráfico ou implicam uma análise visual. Exemplos: "mostre-me um gráfico de barras", "qual a distribuição da idade?", "plote a série temporal de vendas", "crie um histograma".
-
-    **Histórico da Conversa:**
-    {history_str}
-
-    **Pergunta Atual do Usuário:**
-    "{query}"
-
-    Com base na pergunta atual e no contexto do histórico, qual ferramenta você deve usar?
-    Responda APENAS com um objeto JSON contendo duas chaves: "ferramenta" e "pergunta_refinada".
-    A "pergunta_refinada" deve ser a pergunta do usuário, possivelmente enriquecida com o contexto do histórico.
-
-    Exemplo de Resposta 1:
-    {{"ferramenta": "gerar_codigo_pandas", "pergunta_refinada": "Qual é a média de idade dos clientes no Brasil?"}}
-
-    Exemplo de Resposta 2:
-    {{"ferramenta": "gerar_codigo_visualizacao", "pergunta_refinada": "Gerar um gráfico de barras mostrando o total de vendas por categoria de produto"}}
+    Ferramentas Disponíveis: `gerar_codigo_pandas` (para cálculos, tabelas), `gerar_codigo_visualizacao` (para gráficos).
+    Histórico da Conversa: {history_str}
+    Pergunta Atual do Usuário: "{query}"
+    Responda APENAS com um objeto JSON contendo "ferramenta" e "pergunta_refinada".
     """
     response = model.generate_content(prompt)
     try:
-        # Limpa a resposta para garantir que seja um JSON válido
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
         return json.loads(cleaned_response)
     except (json.JSONDecodeError, AttributeError):
-        # Fallback se o LLM não retornar um JSON válido
         return {"ferramenta": "gerar_codigo_pandas", "pergunta_refinada": query}
 
-
 def tool_code_generator(query, df_head):
-    """Ferramenta que gera código Pandas."""
     prompt = f"""
     Você é um especialista em Python e Pandas. Gere código para responder à pergunta.
-    DataFrame: `df`.
-    Amostra:
-    {df_head.to_markdown()}
+    DataFrame: `df`. Amostra: {df_head.to_markdown()}
     Pergunta: "{query}"
-    Gere APENAS o código Python. O resultado final DEVE ser armazenado na variável `resultado`.
+    Gere APENAS o código Python. O resultado DEVE ser armazenado na variável `resultado`.
     """
     response = model.generate_content(prompt)
-    # <-- MUDANÇA: Lógica de sanitização para remover texto extra e Markdown
     raw_code = response.text
-    cleaned_code = raw_code.replace("```python", "").replace("```", "").strip()
-    return cleaned_code
+    return raw_code.replace("```python", "").replace("```", "").strip()
 
 def tool_visualization_generator(query, df_head):
-    """Ferramenta que gera código de visualização."""
-    # <-- MUDANÇA: Removida a formatação Markdown (**) do prompt
     prompt = f"""
     Você é um especialista em visualização de dados com Python, Matplotlib e Seaborn.
     Gere código para criar uma visualização que responda à pergunta do usuário.
-    Use o DataFrame `df`.
-    Amostra:
-    {df_head.to_markdown()}
+    Use o DataFrame `df`. Amostra: {df_head.to_markdown()}
     Pergunta: "{query}"
-
     Instruções Cruciais:
     1. Importe `matplotlib.pyplot as plt` e `seaborn as sns`.
     2. Crie a figura e os eixos (ex: `fig, ax = plt.subplots()`).
     3. Gere o gráfico usando `ax`. Adicione títulos e rótulos claros.
     4. NÃO use `plt.show()`.
     5. O seu código DEVE retornar a figura gerada na variável `resultado` (ex: `resultado = fig`).
-    
     Gere APENAS o código Python.
     """
     response = model.generate_content(prompt)
-    # Lógica de sanitização para remover texto extra e Markdown
     raw_code = response.text
-    cleaned_code = raw_code.replace("```python", "").replace("```", "").strip()
-    return cleaned_code
+    return raw_code.replace("```python", "").replace("```", "").strip()
 
 def agent_results_synthesizer(query, code_result):
-    """Sintetiza resultados textuais."""
-    # Implementação simplificada para manter o foco na lógica principal
     return f"**Análise para a pergunta:** '{query}'\n\n**Resultado:**\n\n```\n{str(code_result)}\n```"
 
 # =============================================================================
-# 4. FUNÇÕES AUXILIARES
+# 4. FUNÇÕES AUXILIARES (ATUALIZADAS)
 # =============================================================================
-def load_csv_from_zip(zip_file):
+def load_dataframes_from_zip(zip_file):
+    """Carrega TODOS os CSVs de um arquivo zip em um dicionário de DataFrames."""
+    dataframes = {}
     try:
         with zipfile.ZipFile(zip_file, 'r') as z:
-            csv_filename = next((name for name in z.namelist() if name.lower().endswith('.csv')), None)
-            if csv_filename:
-                with z.open(csv_filename) as f:
-                    return pd.read_csv(f, on_bad_lines='skip')
-            return None
+            for filename in z.namelist():
+                if filename.lower().endswith('.csv'):
+                    with z.open(filename) as f:
+                        # Usa o nome do arquivo como chave
+                        dataframes[filename] = pd.read_csv(f, on_bad_lines='skip')
+        return dataframes if dataframes else None
     except Exception:
         return None
 
 # =============================================================================
-# 5. LÓGICA DA INTERFACE E ESTADO DA SESSÃO
+# 5. LÓGICA DA INTERFACE E ESTADO DA SESSÃO (REESTRUTURADA)
 # =============================================================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "df" not in st.session_state:
-    st.session_state.df = None
+if "dataframes" not in st.session_state:
+    st.session_state.dataframes = None
+if "active_scope" not in st.session_state:
+    st.session_state.active_scope = "Nenhum"
 
-st.title("🍏 Data Insights Pro")
-st.markdown("Seu parceiro de análise estratégica, com a tecnologia Gemini 1.5.")
-st.markdown("---")
+# --- Layout Principal ---
+left_column, right_column = st.columns([1, 2.5], gap="large")
 
-if st.session_state.df is None:
-    st.info("Para começar, carregue um arquivo `.zip` contendo um `.csv`.")
-    uploaded_file = st.file_uploader("Arraste seu arquivo aqui", type="zip", label_visibility="collapsed")
-    if uploaded_file:
-        with st.spinner("Realizando análise exploratória inicial..."):
-            df = load_csv_from_zip(uploaded_file)
-            if df is not None:
-                st.session_state.df = df
-                st.session_state.messages = []
-                welcome_message = agent_onboarding(df)
-                st.session_state.messages.append({"role": "assistant", "content": welcome_message})
-                st.rerun()
-            else:
-                st.error("Nenhum arquivo .csv encontrado no .zip.")
-else:
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            if isinstance(message["content"], str):
-                st.markdown(message["content"])
-            else: # Se for um gráfico
-                st.pyplot(message["content"])
-
-    if prompt := st.chat_input("Faça uma pergunta ou peça um gráfico..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            with st.spinner("Analisando e decidindo a melhor abordagem..."):
-                try:
-                    # Roteador decide qual ferramenta usar
-                    router_decision = agent_router(prompt, st.session_state.messages)
-                    ferramenta = router_decision.get("ferramenta")
-                    pergunta_refinada = router_decision.get("pergunta_refinada", prompt)
-
-                    st.write(f"🤖 *Decisão do Agente: Usando a ferramenta `{ferramenta}`...*")
-                    
-                    codigo_gerado = ""
-                    if ferramenta == "gerar_codigo_visualizacao":
-                        codigo_gerado = tool_visualization_generator(pergunta_refinada, st.session_state.df.head())
-                    else: # Fallback para pandas
-                        codigo_gerado = tool_code_generator(pergunta_refinada, st.session_state.df.head())
-                    
-                    # Executa o código gerado
-                    namespace = {
-                        'df': st.session_state.df,
-                        'plt': plt,
-                        'sns': sns,
-                        'pd': pd,
-                        'io': io
-                    }
-                    exec(codigo_gerado, namespace)
-                    resultado_bruto = namespace.get('resultado')
-
-                    # Exibe o resultado apropriado
-                    if isinstance(resultado_bruto, plt.Figure):
-                        st.pyplot(resultado_bruto)
-                        st.session_state.messages.append({"role": "assistant", "content": resultado_bruto})
-                    else:
-                        resposta_final = agent_results_synthesizer(pergunta_refinada, resultado_bruto)
-                        st.markdown(resposta_final)
-                        st.session_state.messages.append({"role": "assistant", "content": resposta_final})
-
-                except Exception as e:
-                    error_message = f"Desculpe, encontrei um erro. Tente reformular sua pergunta.\n\n**Detalhe técnico:** `{e}`"
-                    st.error(error_message)
-                    st.session_state.messages.append({"role": "assistant", "content": error_message})
+# --- PAINEL ESQUERDO: CONTROLES ---
+with left_column:
+    st.title("🗂️ Data Hub")
     
-    st.markdown("---")
-    if st.button("Analisar Novo Arquivo"):
-        st.session_state.df = None
-        st.session_state.messages = []
-        st.rerun()
+    if st.session_state.dataframes is None:
+        st.info("Carregue um arquivo `.zip` para catalogar seus dados.")
+        uploaded_file = st.file_uploader("Carregar arquivo", type="zip", label_visibility="collapsed")
+        if uploaded_file:
+            with st.spinner("Catalogando arquivos..."):
+                dfs = load_dataframes_from_zip(uploaded_file)
+                if dfs:
+                    st.session_state.dataframes = dfs
+                    st.session_state.messages = []
+                    welcome_message = agent_onboarding(dfs)
+                    st.session_state.messages.append({"role": "assistant", "content": welcome_message})
+                    st.session_state.active_scope = "Analisar Todos em Conjunto" # Define um padrão
+                    st.rerun()
+                else:
+                    st.error("Nenhum arquivo .csv encontrado no .zip.")
+    else:
+        st.success("Catálogo de dados pronto!")
+        st.markdown("---")
+        
+        # Menu de seleção de escopo
+        scope_options = ["Analisar Todos em Conjunto"] + list(st.session_state.dataframes.keys())
+        st.session_state.active_scope = st.selectbox(
+            "**Selecione o escopo da análise:**",
+            options=scope_options,
+            index=scope_options.index(st.session_state.active_scope) # Mantém a seleção
+        )
+        
+        st.markdown("---")
+        if st.button("Analisar Novo Catálogo"):
+            st.session_state.dataframes = None
+            st.session_state.messages = []
+            st.session_state.active_scope = "Nenhum"
+            st.rerun()
+
+# --- PAINEL DIREITO: CHAT ---
+with right_column:
+    st.title("🍏 Insights")
+    
+    if st.session_state.dataframes is None:
+        st.info("Aguardando o carregamento de um catálogo de dados no painel à esquerda.")
+    else:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                if isinstance(message["content"], str):
+                    st.markdown(message["content"])
+                else:
+                    st.pyplot(message["content"])
+
+        if prompt := st.chat_input(f"Pergunte sobre '{st.session_state.active_scope}'..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Analisando..."):
+                    try:
+                        # Prepara o DataFrame ativo com base no escopo
+                        if st.session_state.active_scope == "Analisar Todos em Conjunto":
+                            active_df = pd.concat(st.session_state.dataframes.values(), ignore_index=True)
+                        else:
+                            active_df = st.session_state.dataframes[st.session_state.active_scope]
+                        
+                        # Roteador decide qual ferramenta usar
+                        router_decision = agent_router(prompt, st.session_state.messages)
+                        ferramenta = router_decision.get("ferramenta")
+                        pergunta_refinada = router_decision.get("pergunta_refinada", prompt)
+                        st.write(f"🤖 *Escopo: `{st.session_state.active_scope}`. Ferramenta: `{ferramenta}`...*")
+                        
+                        # Gera e executa o código
+                        codigo_gerado = ""
+                        if ferramenta == "gerar_codigo_visualizacao":
+                            codigo_gerado = tool_visualization_generator(pergunta_refinada, active_df.head())
+                        else:
+                            codigo_gerado = tool_code_generator(pergunta_refinada, active_df.head())
+                        
+                        namespace = {'df': active_df, 'plt': plt, 'sns': sns, 'pd': pd, 'io': io}
+                        exec(codigo_gerado, namespace)
+                        resultado_bruto = namespace.get('resultado')
+
+                        # Exibe o resultado
+                        if isinstance(resultado_bruto, plt.Figure):
+                            st.pyplot(resultado_bruto)
+                            st.session_state.messages.append({"role": "assistant", "content": resultado_bruto})
+                        else:
+                            resposta_final = agent_results_synthesizer(pergunta_refinada, resultado_bruto)
+                            st.markdown(resposta_final)
+                            st.session_state.messages.append({"role": "assistant", "content": resposta_final})
+
+                    except Exception as e:
+                        error_message = f"Desculpe, encontrei um erro. Tente reformular sua pergunta.\n\n**Detalhe técnico:** `{e}`"
+                        st.error(error_message)
+                        st.session_state.messages.append({"role": "assistant", "content": error_message})
