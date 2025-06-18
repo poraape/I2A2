@@ -1,4 +1,4 @@
-# data_insights_app.py - Refatorado com melhorias estruturais
+# data_insights_app.py - Refatorado com melhorias estruturais e antialucinação
 
 import streamlit as st
 import pandas as pd
@@ -101,22 +101,36 @@ TOOLS = {
 }
 
 # =============================================================================
-# AGENTE EXECUTOR SIMPLES (1 ciclo ReAct)
+# AGENTE EXECUTOR APRIMORADO COM ANTI-ALUCINAÇÃO
 # =============================================================================
 def agent_executor(query, chat_history, scope):
-    recent_history = chat_history[-5:]  # limitar histórico para evitar excesso de tokens
+    recent_history = chat_history[-5:]
     history_str = "".join([f"{m['role']}: {m['content']}\n" for m in recent_history])
+    df = get_active_df(scope)
+    df_info = f"{len(df)} linhas, colunas: {list(df.columns)}"
+
+    # Camada de interpretação semântica para entender intenções simples como contagem
+    if any(term in query.lower() for term in ["quantas notas", "número de notas", "total de notas"]):
+        try:
+            resultado = len(df)
+            return {"tool": "final_answer", "tool_input": f"Existem {resultado} notas fiscais no escopo atual."}, ""
+        except Exception as e:
+            return {"tool": "final_answer", "tool_input": f"Erro ao contar as notas: {e}"}, ""
+
     context = f"""
     **Contexto da Análise:**
     - Escopo: {scope}
     - Arquivos: {list(st.session_state.dataframes.keys())}
+    - Shape do DataFrame: {df_info}
     - Histórico: {history_str}
     """
+
     prompt = f"""
-    Você é um analista de dados. Siga o ciclo Thought → Action → Observation para resolver:
+    Você é um analista de dados confiável. Siga o ciclo Thought → Action → Observation para resolver:
     {context}
     Pergunta: "{query}"
-    Ferramentas: {list(TOOLS.keys())}
+    Ferramentas disponíveis: {list(TOOLS.keys())}
+
     Ao concluir, envie: {{"tool": "final_answer", "tool_input": "..."}}
     """
     try:
