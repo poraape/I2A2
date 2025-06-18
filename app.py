@@ -103,11 +103,12 @@ TOOLS = {
 # AGENTE EXECUTOR SIMPLES (1 ciclo ReAct)
 # =============================================================================
 def agent_executor(query, chat_history, scope):
+    history_str = "".join([f"{m['role']}: {m['content']}\n" for m in chat_history])
     context = f"""
     **Contexto da Análise:**
     - Escopo: {scope}
     - Arquivos: {list(st.session_state.dataframes.keys())}
-    - Histórico: {''.join([f'{m['role']}: {m['content']}\n' for m in chat_history])}
+    - Histórico: {history_str}
     """
     prompt = f"""
     Você é um analista de dados. Siga o ciclo Thought → Action → Observation para resolver:
