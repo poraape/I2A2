@@ -209,7 +209,7 @@ def agent_executor(query, chat_history, scope):
 # 5. LÓGICA DA INTERFACE E ESTADO DA SESSÃO
 # =============================================================================
 
-# Inicialização do estado da sessão
+# Inicialização do estado da sessão para garantir que as variáveis existam
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "dataframes" not in st.session_state:
@@ -223,25 +223,27 @@ if "active_scope" not in st.session_state:
 if st.session_state.dataframes is None:
     
     # Título e Slogan
-    st.title("🍏 Insights")
-    st.markdown("##### Transforme dados brutos em diálogos inteligentes.")
-    st.text("Carregue um arquivo .zip com seus CSVs para iniciar a análise.")
+    st.title("🍏 Data Insights Pro")
+    st.markdown("##### Um universo de dados em um único lugar. Pergunte, explore, descubra.")
     st.markdown("---")
     
     # Área de Upload Centralizada
+    st.info("Para começar, carregue um arquivo `.zip` contendo um ou mais arquivos `.csv`.")
     uploaded_file = st.file_uploader(
-        "Arraste seu catálogo de dados aqui", 
+        "Arraste seu catálogo de dados aqui ou clique para procurar", 
         type="zip", 
         label_visibility="collapsed"
     )
     
     if uploaded_file:
         with st.spinner("Catalogando e analisando seus arquivos..."):
-            dfs = load_dataframes_from_zip(uploaded_file)
+            # Use a função de carregar múltiplos dataframes
+            dfs = load_dataframes_from_zip(uploaded_file) 
             if dfs:
                 st.session_state.dataframes = dfs
                 st.session_state.messages = []
-                welcome_message = agent_onboarding(dfs)
+                # Use a função de onboarding que lida com múltiplos arquivos
+                welcome_message = agent_onboarding(dfs) 
                 st.session_state.messages.append({"role": "assistant", "content": welcome_message})
                 st.session_state.active_scope = "Analisar Todos em Conjunto"
                 st.rerun()
@@ -277,7 +279,10 @@ else:
         with st.chat_message(message["role"]):
             if isinstance(message["content"], str):
                 st.markdown(message["content"])
-            else:
+            elif "thought" in message["content"]: # Para exibir o raciocínio do agente
+                 with st.expander("Ver o Raciocínio do Agente"):
+                    st.markdown(message["content"]["thought"])
+            else: # Para exibir gráficos
                 st.pyplot(message["content"])
 
     # Captura a nova pergunta do usuário
@@ -286,42 +291,41 @@ else:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Processa a pergunta com os agentes (lógica de execução permanece a mesma)
+        # Processa a pergunta com os agentes
         with st.chat_message("assistant"):
-            with st.spinner("Analisando..."):
+            with st.spinner("Pensando..."):
                 try:
-                    if st.session_state.active_scope == "Analisar Todos em Conjunto":
-                        active_df = pd.concat(st.session_state.dataframes.values(), ignore_index=True)
-                    else:
-                        active_df = st.session_state.dataframes[st.session_state.active_scope]
+                    # Lógica de execução do agente (ReAct)
+                    action_json, thought_process = agent_executor(prompt, st.session_state.messages, st.session_state.active_scope)
                     
-                    # A lógica de chamar os agentes, executar o código, etc., permanece a mesma
-                    # ... (cole aqui a lógica de execução da sua versão anterior) ...
-                    router_decision = agent_router(prompt, st.session_state.messages)
-                    ferramenta = router_decision.get("ferramenta")
-                    pergunta_refinada = router_decision.get("pergunta_refinada", prompt)
-                    st.write(f"🤖 *Usando a ferramenta `{ferramenta}`...*")
-                    
-                    codigo_gerado = ""
-                    if ferramenta == "gerar_codigo_visualizacao":
-                        codigo_gerado = tool_visualization_generator(pergunta_refinada, active_df.head())
-                    else:
-                        codigo_gerado = tool_code_generator(pergunta_refinada, active_df.head())
-                    
-                    namespace = {'df': active_df, 'plt': plt, 'sns': sns, 'pd': pd, 'io': io}
-                    exec(codigo_gerado, namespace)
-                    resultado_bruto = namespace.get('resultado')
+                    st.session_state.messages.append({"role": "assistant", "content": {"thought": thought_process}})
+                    with st.expander("Ver o Raciocínio do Agente"):
+                        st.markdown(thought_process)
 
-                    if isinstance(resultado_bruto, plt.Figure):
-                        st.pyplot(resultado_bruto)
-                        st.session_state.messages.append({"role": "assistant", "content": resultado_bruto})
+                    tool_name = action_json.get("tool")
+                    tool_input = action_json.get("tool_input")
+                    
+                    if tool_name == "final_answer":
+                        final_response = tool_input
+                    elif tool_name in TOOLS:
+                        tool_output = TOOLS[tool_name](tool_input, scope=st.session_state.active_scope) if tool_name == "python_code_interpreter" else TOOLS[tool_name](tool_input)
+                        
+                        final_response = f"**Resultado da Ferramenta `{tool_name}`:**\n\n"
+                        if isinstance(tool_output, plt.Figure):
+                            st.pyplot(tool_output)
+                            st.session_state.messages.append({"role": "assistant", "content": tool_output})
+                            final_response = None
+                        else:
+                            final_response += str(tool_output)
                     else:
-                        resposta_final = agent_results_synthesizer(pergunta_refinada, resultado_bruto)
-                        st.markdown(resposta_final)
-                        st.session_state.messages.append({"role": "assistant", "content": resposta_final})
+                        final_response = "Desculpe, o agente escolheu uma ferramenta desconhecida."
+
+                    if final_response:
+                        st.markdown(final_response)
+                        st.session_state.messages.append({"role": "assistant", "content": final_response})
 
                 except Exception as e:
-                    error_message = f"Desculpe, encontrei um erro. Tente reformular sua pergunta.\n\n**Detalhe técnico:** `{e}`"
+                    error_message = f"Ocorreu um erro crítico no ciclo do agente.\n\n**Detalhe técnico:** `{e}`"
                     st.error(error_message)
                     st.session_state.messages.append({"role": "assistant", "content": error_message})
 
