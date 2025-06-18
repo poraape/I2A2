@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from duckduckgo_search import DDGS
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
 
 # =============================================================================
 # CONFIGURAÇÃO E CSS
@@ -58,7 +59,7 @@ try:
     if not GOOGLE_API_KEY:
         raise ValueError("Chave não encontrada.")
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-pro-latest')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception:
     st.error("Chave da API do Google não configurada corretamente.")
     st.stop()
@@ -103,7 +104,8 @@ TOOLS = {
 # AGENTE EXECUTOR SIMPLES (1 ciclo ReAct)
 # =============================================================================
 def agent_executor(query, chat_history, scope):
-    history_str = "".join([f"{m['role']}: {m['content']}\n" for m in chat_history])
+    recent_history = chat_history[-5:]  # limitar histórico para evitar excesso de tokens
+    history_str = "".join([f"{m['role']}: {m['content']}\n" for m in recent_history])
     context = f"""
     **Contexto da Análise:**
     - Escopo: {scope}
@@ -117,7 +119,11 @@ def agent_executor(query, chat_history, scope):
     Ferramentas: {list(TOOLS.keys())}
     Ao concluir, envie: {{"tool": "final_answer", "tool_input": "..."}}
     """
-    response = model.generate_content(prompt)
+    try:
+        response = model.generate_content(prompt)
+    except ResourceExhausted:
+        return {"tool": "final_answer", "tool_input": "Limite de uso da API excedido. Tente novamente mais tarde."}, ""
+
     try:
         json_str = next(part for part in response.text.split("```") if '{' in part)
         return json.loads(json_str), response.text
