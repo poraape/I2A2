@@ -170,7 +170,16 @@ if "df" not in st.session_state:
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.image("https://i.imgur.com/nJp2Vj2.png", width=80) # Logo genérico minimalista
+    # Use o emoji diretamente no título para um visual limpo
+    st.title("🍏 Insights") 
+    
+    st.info("Comece carregando um arquivo `.zip` contendo um `.csv` para análise.")
+    
+    uploaded_file = st.file_uploader(
+        "Carregar arquivo de dados", 
+        type="zip", 
+        label_visibility="collapsed"
+    )
     st.header("Data Insights Agent")
     st.markdown("Faça o upload do seu arquivo `.zip` contendo um `.csv` para começar a análise.")
     
