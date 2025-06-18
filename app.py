@@ -89,22 +89,63 @@ def agent_router(query, chat_history):
     except (json.JSONDecodeError, AttributeError):
         return {"ferramenta": "gerar_codigo_pandas", "pergunta_refinada": query}
 
-def tool_code_generator(query, df_head):
+def tool_code_generator(query, df_columns, df_head):
+    """Ferramenta que gera código Pandas com contexto aprimorado."""
+    # Converte a lista de colunas em uma string fácil de ler
+    columns_str = ", ".join(df_columns)
+    
     prompt = f"""
-    Especialista Pandas: Gere código Python para a pergunta. DataFrame `df`. Resultado em `resultado`.
-    Amostra: {df_head.to_markdown()}
+    Você é um gerador de código Python/Pandas. Sua única função é escrever código para responder a uma pergunta.
+
+    **Contexto do DataFrame `df`:**
+    - Colunas disponíveis: [{columns_str}]
+    - Primeiras 5 linhas:
+    {df_head.to_markdown()}
+
+    **Tarefa:**
+    Gere o código Python para responder à pergunta do usuário.
     Pergunta: "{query}"
+
+    **Regras Estritas:**
+    1. O resultado DEVE ser armazenado em uma variável chamada `resultado`.
+    2. O código deve ser sintaticamente correto e pronto para ser executado com `exec()`.
+    3. NÃO inclua explicações, comentários, ou qualquer texto que não seja código.
+    4. NÃO use `print()`.
+
+    **Exemplo de Saída Correta:**
+    `resultado = df['nome_da_coluna'].value_counts()`
+
+    Seu código:
     """
     response = model.generate_content(prompt)
     raw_code = response.text
+    # Sanitização para remover formatação Markdown
     return raw_code.replace("```python", "").replace("```", "").strip()
 
-def tool_visualization_generator(query, df_head):
+def tool_visualization_generator(query, df_columns, df_head):
+    """Ferramenta que gera código de visualização com contexto aprimorado."""
+    columns_str = ", ".join(df_columns)
+    
     prompt = f"""
-    Especialista em Visualização (Matplotlib/Seaborn): Gere código Python para a pergunta. DataFrame `df`.
-    Amostra: {df_head.to_markdown()}
+    Você é um especialista em visualização de dados com Python, Matplotlib e Seaborn.
+
+    **Contexto do DataFrame `df`:**
+    - Colunas disponíveis: [{columns_str}]
+    - Primeiras 5 linhas:
+    {df_head.to_markdown()}
+
+    **Tarefa:**
+    Gere código para criar uma visualização que responda à pergunta do usuário.
     Pergunta: "{query}"
-    Instruções: Use `fig, ax = plt.subplots()`. Sem `plt.show()`. Resultado em `resultado = fig`.
+
+    **Instruções Cruciais:**
+    1. Importe `matplotlib.pyplot as plt` e `seaborn as sns`.
+    2. Crie a figura e os eixos (ex: `fig, ax = plt.subplots()`).
+    3. Gere o gráfico usando `ax`. Adicione títulos e rótulos claros.
+    4. NÃO use `plt.show()`.
+    5. O seu código DEVE retornar a figura gerada na variável `resultado` (ex: `resultado = fig`).
+    
+    Gere APENAS o código Python.
     """
     response = model.generate_content(prompt)
     raw_code = response.text
@@ -195,7 +236,7 @@ else:
             st.markdown(prompt)
 
         # Processa a pergunta com os agentes
-        with st.chat_message("assistant"):
+               with st.chat_message("assistant"):
             with st.spinner("Analisando..."):
                 try:
                     # Prepara o DataFrame ativo com base no escopo
@@ -207,28 +248,41 @@ else:
                     router_decision = agent_router(prompt, st.session_state.messages)
                     ferramenta = router_decision.get("ferramenta")
                     pergunta_refinada = router_decision.get("pergunta_refinada", prompt)
-                    st.write(f"🤖 *Usando a ferramenta `{ferramenta}`...*")
+                    st.write(f"🤖 *Escopo: `{st.session_state.active_scope}`. Ferramenta: `{ferramenta}`...*")
                     
                     codigo_gerado = ""
+                    # <-- MUDANÇA: Passando a lista de colunas para os geradores
                     if ferramenta == "gerar_codigo_visualizacao":
-                        codigo_gerado = tool_visualization_generator(pergunta_refinada, active_df.head())
+                        codigo_gerado = tool_visualization_generator(pergunta_refinada, list(active_df.columns), active_df.head())
                     else:
-                        codigo_gerado = tool_code_generator(pergunta_refinada, active_df.head())
+                        codigo_gerado = tool_code_generator(pergunta_refinada, list(active_df.columns), active_df.head())
                     
-                    namespace = {'df': active_df, 'plt': plt, 'sns': sns, 'pd': pd, 'io': io}
-                    exec(codigo_gerado, namespace)
-                    resultado_bruto = namespace.get('resultado')
-
-                    if isinstance(resultado_bruto, plt.Figure):
-                        st.pyplot(resultado_bruto)
-                        st.session_state.messages.append({"role": "assistant", "content": resultado_bruto})
+                    # --- NOVA LÓGICA DE VALIDAÇÃO E EXECUÇÃO ---
+                    # Se a resposta não parece código, trate-a como uma explicação.
+                    if "resultado =" not in codigo_gerado:
+                        st.warning("O agente não conseguiu gerar um código executável e forneceu uma explicação ou pergunta de acompanhamento:")
+                        st.markdown(codigo_gerado)
+                        st.session_state.messages.append({"role": "assistant", "content": codigo_gerado})
                     else:
-                        resposta_final = agent_results_synthesizer(pergunta_refinada, resultado_bruto)
-                        st.markdown(resposta_final)
-                        st.session_state.messages.append({"role": "assistant", "content": resposta_final})
+                        # O código parece válido, mostre-o e tente executar.
+                        st.markdown("##### Código Gerado para Análise:")
+                        st.code(codigo_gerado, language="python")
+                        
+                        namespace = {'df': active_df, 'plt': plt, 'sns': sns, 'pd': pd, 'io': io}
+                        exec(codigo_gerado, namespace)
+                        resultado_bruto = namespace.get('resultado')
+
+                        # Exibe o resultado
+                        if isinstance(resultado_bruto, plt.Figure):
+                            st.pyplot(resultado_bruto)
+                            st.session_state.messages.append({"role": "assistant", "content": resultado_bruto})
+                        else:
+                            resposta_final = agent_results_synthesizer(pergunta_refinada, resultado_bruto)
+                            st.markdown(resposta_final)
+                            st.session_state.messages.append({"role": "assistant", "content": resposta_final})
 
                 except Exception as e:
-                    error_message = f"Desculpe, encontrei um erro. Tente reformular sua pergunta.\n\n**Detalhe técnico:** `{e}`"
+                    error_message = f"Desculpe, encontrei um erro durante a execução. Tente reformular sua pergunta.\n\n**Detalhe técnico:** `{e}`"
                     st.error(error_message)
                     st.session_state.messages.append({"role": "assistant", "content": error_message})
     
