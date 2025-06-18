@@ -12,6 +12,7 @@ st.set_page_config(
     layout="centered",
     page_title="Data Insights Agent",
     page_icon="🍏"
+    initial_sidebar_state="expanded"  # <-- ADICIONE ESTA LINHA
 )
 
 # Estilo CSS para a estética "Apple-like" minimalista
