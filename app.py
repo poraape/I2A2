@@ -62,7 +62,6 @@ api_key = None
 # Tenta carregar do Streamlit Secrets (para produção na nuvem)
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
-    st.toast("Chave da API carregada do Streamlit Secrets.")
 # Se não encontrar, tenta carregar do arquivo .env (para desenvolvimento local/Codespaces)
 except:
     load_dotenv()
