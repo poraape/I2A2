@@ -171,7 +171,7 @@ if "df" not in st.session_state:
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
     # Use o emoji diretamente no título para um visual limpo
-    st.title("🍏 Insights") 
+    st.title("📂 Arquivos") 
     
     st.info("Comece carregando um arquivo `.zip` contendo um `.csv` para análise.")
     
@@ -180,10 +180,6 @@ with st.sidebar:
         type="zip", 
         label_visibility="collapsed"
     )
-    st.header("Data Insights Agent")
-    st.markdown("Faça o upload do seu arquivo `.zip` contendo um `.csv` para começar a análise.")
-    
-    uploaded_file = st.file_uploader("Seu arquivo de dados", type="zip", label_visibility="collapsed")
     
     # Processamento do arquivo carregado
     if uploaded_file and st.session_state.df is None:
